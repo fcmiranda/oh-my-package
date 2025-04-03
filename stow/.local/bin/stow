@@ -462,7 +462,7 @@ use Getopt::Long qw(GetOptionsFromArray);
 use Scalar::Util qw(reftype);
 use Text::ParseWords qw(shellwords);
 
-use lib "/home/fecavmi/oh-my-package/stow//.local/share/perl5/site_perl";
+use lib "/home/felipe/oh-my-package/stow/.local/share/perl5/site_perl";
 use Stow;
 use Stow::Util qw(parent error);
 

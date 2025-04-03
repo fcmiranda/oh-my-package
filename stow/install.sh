@@ -1,117 +1,111 @@
 #!/bin/bash
 
-# Script to install Stow locally (into $HOME/.local)
+# Constants
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OMP_DIR="$(dirname "${SCRIPT_DIR}")"
+readonly STOW_URL="http://ftp.gnu.org/gnu/stow/stow-latest.tar.gz"
+readonly STOW_VERSION="2.4.1"
+readonly INSTALL_DIR="$HOME/oh-my-package/stow/.local"
+readonly EXTRACTED_DIR="$HOME/Downloads/extracted/stow-latest/stow-${STOW_VERSION}"
 
-# Check if Stow is already installed
+# Package information
+readonly NAME="stow"
+
+# Source the message functions
+source "${OMP_DIR}/messages.sh"
+
+# Show installation header
+info "****************************************************************"
+info "                      Installing $NAME v$STOW_VERSION"
+info "****************************************************************"
+echo ""
+
+# Check if stow is already installed
 if command -v stow &> /dev/null; then
-  echo "Stow is already installed (likely globally)."
-  echo "If you want to install locally anyway, uninstall the global version first."
-  exit 1
-fi
-echo "Starting the installation..."
-printf "...\n...\n...\n"
-
-URL="http://ftp.gnu.org/gnu/stow/stow-latest.tar.gz"
-SOURCE_DIR="$HOME/Downloads"
-STOW_VERSION="2.4.1"
-STOW_FILE="$SOURCE_DIR/stow-latest.tar.gz"
-OMP_STOW_DIR="$HOME/oh-my-package/stow/"
-INSTALL_DIR="$OMP_STOW_DIR/.local"
-TARGET_LINK_DIR="$OMP_STOW_DIR"
-
-
-if [ ! -f "$STOW_FILE" ]; then
-  echo "Error: There's no source file to be extracted."
-  echo "Download the source file at $URL"
-  exit 1
+    info "stow is already installed"
+    exit 0
 fi
 
-# Check if installation directory exists, create if not
+warn "Installing from source..."
+
+# Create installation directory
+info "Creating installation directory..."
 mkdir -p "$INSTALL_DIR/bin"
 
-echo "Extracting Stow source..."
-tar -xzf "$STOW_FILE"
+# Download and extract stow
+info "Downloading stow source..."
+bash "${OMP_DIR}/download.sh" "$STOW_URL"
 
-STOW_DIR="stow-${STOW_VERSION}"
-
-if [ ! -d "$STOW_DIR" ]; then
-  echo "Error: Could not find the zip file."
-  exit 1
+# Build and install stow
+info "Building and installing stow..."
+if [ ! -d "$EXTRACTED_DIR" ]; then
+    error "Could not find extracted stow directory at $EXTRACTED_DIR"
+    exit 1
 fi
 
-# Build and install Stow
-echo "Building and installing Stow..."
-cd "$STOW_DIR"
+cd "$EXTRACTED_DIR" || {
+    error "Failed to change to stow directory"
+    exit 1
+}
 
-./configure --prefix="$INSTALL_DIR"
+info "Running configure..."
+./configure --prefix="$INSTALL_DIR" || {
+    error "Configure failed. Check dependencies."
+    exit 1
+}
 
-if [ $? -ne 0 ]; then
-  echo "Error: ./configure failed.  Check dependencies."
-  exit 1
-fi
+info "Running make..."
+make || {
+    error "Make failed."
+    exit 1
+}
 
-make
+info "Running make install..."
+make install || {
+    error "Make install failed."
+    exit 1
+}
 
-if [ $? -ne 0 ]; then
-  echo "Error: make failed."
-  exit 1
-fi
-
-make install
-
-if [ $? -ne 0 ]; then
-  echo "Error: make install failed."
-  exit 1
-fi
-
-
-# Add to PATH
-if grep -q "export PATH=\"$INSTALL_DIR/bin:\$PATH\"" "$HOME/.zshrc"; then
-  echo "PATH already configured."
-else
-
-  if ! [ -f "$HOME/.zshrc" ]; then
-    echo "creating $HOME/.zshrc file"
-    echo "adding $INSTALL_DIR/bin to PATH in ~/.zshrc"
-    echo "export PATH=\"$INSTALL_DIR/bin:\$PATH\"" > "$HOME/.zshrc"
-  else
-    echo "warning: .zshrc file found. You'll need to manually add $INSTALL_DIR/bin to your PATH."
-  fi
-fi
-
-# Clean up
-echo "cleaning up..."
-cd ..
-rm -rf "$STOW_DIR"
-rm "$STOW_FILE"
-
-# Source the configuration file to update the PATH
-if [ -n "$CONFIG_FILE" ]; then
-  echo "sourcing $CONFIG_FILE to update PATH..."
-  source "$CONFIG_FILE"
-fi
-
-echo "stow installed locally to $INSTALL_DIR/bin"
-
-echo "make $INSTALL_DIR/bin/stow executable"
+# Make files executable
+info "Setting file permissions..."
 chmod +x "$INSTALL_DIR/bin/stow"
-echo "make $INSTALL_DIR/bin/chkstow executable"
 chmod +x "$INSTALL_DIR/bin/chkstow"
 
-echo "make link.sh executable"
-chmod +x "$OMP_STOW_DIR/link.sh"
-
-printf "...\n...\n...\n"
-echo "Creating symbolic links from $TARGET_LINK_DIR to $HOME..."
-sh "$OMP_STOW_DIR/link.sh" .
-
-printf "...\n...\n...\n"
-echo "verifying installation..."
-
-if stow --version &> /dev/null; then
-  echo "stow installation verified successfully."
+# Link stow
+info "Creating symlinks..."
+if [ -f "${OMP_DIR}/link.sh" ]; then
+    bash "${OMP_DIR}/link.sh" "${SCRIPT_DIR}" || {
+        error "Failed to create symlinks"
+        exit 1
+    }
 else
-  echo "error: Stow installation verification failed.  Check your PATH."
+    error "link.sh not found at ${OMP_DIR}/link.sh"
+    exit 1
 fi
 
-exit 0
+# Verify installation
+if ! command -v stow &> /dev/null; then
+    error "Failed to install stow"
+    exit 1
+fi
+
+# Add version to omp-package.json
+info "Adding stow version to omp-package.json..."
+bash "${OMP_DIR}/package.sh" "stow@${STOW_VERSION}"
+
+# Clean up extracted files
+info "Cleaning up extracted files..."
+if [ -d "$EXTRACTED_DIR" ]; then
+    rm -rf "$EXTRACTED_DIR" || {
+        warn "Failed to remove extracted files at $EXTRACTED_DIR"
+    }
+fi
+
+# Show installation footer
+echo ""
+info "****************************************************************"
+info "                  $NAME Installation Complete"
+info "****************************************************************"
+echo ""
+
+success "stow installed successfully"
