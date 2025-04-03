@@ -1,0 +1,3 @@
+.linkignore
+*.sh
+.gitignore
