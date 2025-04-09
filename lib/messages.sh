@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Constants
-OMP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the colors
-source "${OMP_DIR}/colors.sh"
+source "${LIB_DIR}/colors.sh"
 
 # Message functions
 error() {

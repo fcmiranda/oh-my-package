@@ -2,17 +2,18 @@
 
 # Constants
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OMP_DIR="$(dirname "${SCRIPT_DIR}")"
+readonly PACKAGES_DIR="$(cd "$(dirname "${SCRIPT_DIR}")" && pwd)"
+readonly OMP_DIR="$(dirname "${PACKAGES_DIR}")"
 readonly STOW_URL="http://ftp.gnu.org/gnu/stow/stow-latest.tar.gz"
 readonly STOW_VERSION="2.4.1"
-readonly INSTALL_DIR="$HOME/oh-my-package/stow/.local"
-readonly EXTRACTED_DIR="$HOME/Downloads/extracted/stow-latest/stow-${STOW_VERSION}"
+readonly INSTALL_DIR="$SCRIPT_DIR/.local"
+readonly EXTRACTED_DIR="$HOME/Downloads/omp-temp/stow-latest/stow-${STOW_VERSION}"
 
 # Package information
 readonly NAME="stow"
 
 # Source the message functions
-source "${OMP_DIR}/messages.sh"
+source "${OMP_DIR}/lib/messages.sh"
 
 # Show installation header
 info "****************************************************************"
@@ -34,7 +35,7 @@ mkdir -p "$INSTALL_DIR/bin"
 
 # Download and extract stow
 info "Downloading stow source..."
-bash "${OMP_DIR}/download.sh" "$STOW_URL"
+bash "${OMP_DIR}/bin/download.sh" "$STOW_URL"
 
 # Build and install stow
 info "Building and installing stow..."
@@ -73,8 +74,8 @@ chmod +x "$INSTALL_DIR/bin/chkstow"
 
 # Link stow
 info "Creating symlinks..."
-if [ -f "${OMP_DIR}/link.sh" ]; then
-    bash "${OMP_DIR}/link.sh" "${SCRIPT_DIR}" || {
+if [ -f "${OMP_DIR}/lib/link.sh" ]; then
+    bash "${OMP_DIR}/lib/link.sh" "${SCRIPT_DIR}" || {
         error "Failed to create symlinks"
         exit 1
     }
@@ -91,7 +92,7 @@ fi
 
 # Add version to omp-package.json
 info "Adding stow version to omp-package.json..."
-bash "${OMP_DIR}/package.sh" "stow@${STOW_VERSION}"
+bash "${OMP_DIR}/bin/package.sh" "stow@${STOW_VERSION}"
 
 # Clean up extracted files
 info "Cleaning up extracted files..."

@@ -136,13 +136,13 @@ create_link() {
   local target_link="$1"
   local source_file="$2"
   info "Creating symbolic link: $target_link -> $source_file"
-  ln -s "$source_file" "$target_link" || die "Failed to create link: $target_link"
+  ln -s "$source_file" "$target_link" || error "Failed to create link: $target_link"
 }
 
 remove_link() {
   local target_link="$1"
   info "Removing symbolic link: $target_link"
-  rm "$target_link" || die "Failed to remove link: $target_link"
+  rm "$target_link" || error "Failed to remove link: $target_link"
 }
 
 # --- Main Logic ---

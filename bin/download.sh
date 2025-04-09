@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # Constants
-OMP_DIR="$(dirname "${BASH_SOURCE[0]}")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly OMP_DIR="$(dirname "${SCRIPT_DIR}")"
 readonly DOWNLOAD_DIR="$HOME/Downloads"
-readonly EXTRACT_DIR="$DOWNLOAD_DIR/extracted"  
+readonly EXTRACT_DIR="$DOWNLOAD_DIR/omp-temp"  
 readonly TIMEOUT=300  # 5 minutes timeout
 readonly STABLE_CHECKS=3  # Number of checks to confirm file is stable
 readonly SLEEP_INTERVAL=1  # Seconds between checks
@@ -15,7 +16,7 @@ readonly ERR_EXTRACTION=3
 readonly ERR_UNSUPPORTED_FORMAT=4
 
 # Source the message functions
-source "${OMP_DIR}/messages.sh"
+source "${OMP_DIR}/lib/messages.sh"
 
 # Function to display usage information
 show_usage() {
@@ -109,37 +110,52 @@ wait_for_download() {
     done
 }
 
-# Function to extract file
-extract_file() {
+# Function to handle downloaded file
+handle_file() {
     local file="$1"
     local filename=$(basename "$file")
     local base_name="${filename%%.*}"  # Remove all extensions
     local extract_path="$EXTRACT_DIR/$base_name"
     
-    ensure_dir "$extract_path"
-    
-    info "Extracting $filename to $extract_path..."
+    ensure_dir "$EXTRACT_DIR"
     
     # Wait a moment to ensure the file is fully written
     sleep $SLEEP_INTERVAL
     
     case "$file" in
-        *.zip)
-            unzip -q "$file" -d "$extract_path" || die "Failed to extract zip file" $ERR_EXTRACTION
-            ;;
-        *.tar.gz)
-            tar -xzf "$file" -C "$extract_path" || die "Failed to extract tar.gz file" $ERR_EXTRACTION
+        *.zip|*.tar.gz)
+            # Clean up existing directory if it exists
+            if [ -d "$extract_path" ]; then
+                rm -rf "$extract_path" || die "Failed to remove existing directory: $extract_path"
+            fi
+            
+            ensure_dir "$extract_path"
+            info "Extracting $filename to $extract_path..."
+            
+            case "$file" in
+                *.zip)
+                    unzip -q "$file" -d "$extract_path" || die "Failed to extract zip file" $ERR_EXTRACTION
+                    ;;
+                *.tar.gz)
+                    tar -xzf "$file" -C "$extract_path" || die "Failed to extract tar.gz file" $ERR_EXTRACTION
+                    ;;
+            esac
+            # Delete the original file after successful extraction
+            rm "$file" || warn "Failed to delete original file: $file"
+            success "Extraction complete. Files are in: $extract_path"
+            warn "Original file has been deleted."
             ;;
         *)
-            die "Unsupported file format: $filename" $ERR_UNSUPPORTED_FORMAT
+            # For non-archive files, just move them to omp-temp
+            info "Moving $filename to $EXTRACT_DIR..."
+            # Remove existing file or directory if it exists
+            if [ -e "$EXTRACT_DIR/$filename" ]; then
+                rm -rf "$EXTRACT_DIR/$filename" || die "Failed to remove existing file/directory: $EXTRACT_DIR/$filename"
+            fi
+            mv "$file" "$EXTRACT_DIR/" || die "Failed to move file to $EXTRACT_DIR" $ERR_EXTRACTION
+            success "File moved to: $EXTRACT_DIR/$filename"
             ;;
     esac
-    
-    # Delete the original file after successful extraction
-    rm "$file" || die "Failed to delete original file: $file"
-    
-    success "Extraction complete. Files are in: $extract_path"
-    warn "Original file has been deleted."
 }
 
 # Function to ask user about existing file
@@ -181,7 +197,7 @@ main() {
     
     if [ -f "$existing_file" ]; then
         if ask_about_existing_file "$existing_file"; then
-            extract_file "$existing_file"
+            handle_file "$existing_file"
             exit 0
         fi
     fi
@@ -190,7 +206,7 @@ main() {
     downloaded_file=$(wait_for_download "$url")
     
     if [ $? -eq 0 ] && [ -n "$downloaded_file" ]; then
-        extract_file "$downloaded_file"
+        handle_file "$downloaded_file"
     else
         die "Download failed or file not found"
     fi

@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # Constants
-readonly OMP_DIR="$(dirname "${BASH_SOURCE[0]}")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly OMP_DIR="$(dirname "${SCRIPT_DIR}")"
 readonly PACKAGE_JSON="$OMP_DIR/omp-package.json"
 
 # Source the message functions
-source "${OMP_DIR}/messages.sh"
+source "${OMP_DIR}/lib/messages.sh"
 
 # Initialize empty JSON object if file doesn't exist
 if [ ! -f "$PACKAGE_JSON" ]; then

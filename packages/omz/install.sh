@@ -2,14 +2,15 @@
 
 # Constants
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OMP_DIR="$(dirname "${SCRIPT_DIR}")"
+readonly PACKAGES_DIR="$(cd "$(dirname "${SCRIPT_DIR}")" && pwd)"
+readonly OMP_DIR="$(dirname "${PACKAGES_DIR}")"
 
 # Package information
 readonly NAME="OMZ"
 readonly VERSION="latest"
 
 # Source the message functions
-source "${OMP_DIR}/messages.sh"
+source "${OMP_DIR}/lib/messages.sh"
 
 # Show installation header
 info "****************************************************************"
@@ -30,7 +31,7 @@ info "Installing omz..."
 readonly OMZ_INSTALL_URL="https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
 readonly DOWNLOAD_DIR="$HOME/Downloads"
 readonly OMZ_INSTALL_SCRIPT="$HOME/omz-install.sh"
-readonly ZSH_DIR="$HOME/oh-my-package/omz/.oh-my-zsh"
+readonly ZSH_DIR="$SCRIPT_DIR/.oh-my-zsh"
 
 # Create download directory
 info "Creating download directory..."
@@ -67,12 +68,28 @@ info "--------------------------------------------------"
 success "Oh my Zsh installation complete."
 
 # Clean up the .zshrc file
-info "Cleaning up .zshrc file..."
-rm -f "$HOME/.zshrc"
+info "Handling existing .zshrc file..."
+if [ -f "$HOME/.zshrc" ]; then
+
+    # Generate timestamp
+    readonly TIMESTAMP=$(date '+%Y-%m-%d-%H-%M-%S')
+    readonly BACKUP_FILE="$SCRIPT_DIR/.zshrc.pre-omp-${TIMESTAMP}"
+
+    # Backup existing .zshrc
+    info "Backing up existing .zshrc to ${BACKUP_FILE}"
+    mv "$HOME/.zshrc" "$BACKUP_FILE" || {
+        error "Failed to backup existing .zshrc"
+        exit 1
+    }
+    success "Existing .zshrc backed up successfully"
+else
+    info "No existing .zshrc found"
+fi
+
 
 # Create symlinks using stow
 info "Creating symlinks with stow..."
-if ! stow -d "$HOME/oh-my-package" omz; then
+if ! stow -d "$PACKAGES_DIR" omz -t "$HOME"; then
     error "Failed to create symlinks with stow."
     exit 1
 fi
@@ -90,4 +107,4 @@ info "****************************************************************"
 echo ""
 
 info "Installation complete. Please restart your terminal or run:"
-info "source ~/.zshrc"
+zsh
