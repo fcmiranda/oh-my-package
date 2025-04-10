@@ -20,6 +20,7 @@ show_usage() {
     echo "  uninstall <package|all>   Uninstall a specific package or all packages"
     echo "  rm <package|all>          Alias for uninstall"
     echo "  list                     List installed packages"
+    echo "  available                List all available packages"
     echo "  help                     Show this help message"
     echo ""
     echo "Options:"
@@ -34,6 +35,7 @@ show_usage() {
     echo "  omp install jq stow      Install specific packages"
     echo "  omp uninstall stow       Uninstall stow"
     echo "  omp rm all               Uninstall all packages"
+    echo "  omp available            Show all available packages"
     exit 0
 }
 
@@ -83,22 +85,11 @@ install_package() {
         return 1
     fi
     
-    # Available package descriptions
-    local descriptions=(
-        "jq:Command-line JSON processor"
-        "stow:Symlink farm manager"
-        "omz:Oh My Zsh framework for managing Zsh configuration"
-    )
-    
-    # Find description for this package
+    # Get package description from install.sh
     local description="no description"
-    for desc in "${descriptions[@]}"; do
-        IFS=':' read -r pkg desc_text <<< "$desc"
-        if [ "$pkg" = "$package_name" ]; then
-            description="$desc_text"
-            break
-        fi
-    done
+    if grep -q "readonly DESCRIPTION=" "${PACKAGES_DIR}/${package_name}/install.sh"; then
+        description=$(grep "readonly DESCRIPTION=" "${PACKAGES_DIR}/${package_name}/install.sh" | cut -d'"' -f2)
+    fi
     
     # Ask for confirmation if in interactive mode
     if [ "$interactive_mode" = true ]; then
@@ -265,13 +256,13 @@ case "$COMMAND" in
         
         # If no specific packages provided, install all packages
         if [ ${#PACKAGES[@]} -eq 0 ]; then
-            # Available packages with descriptions
-            ALL_PACKAGES=("jq" "stow" "omz")
-            DESCRIPTIONS=(
-                "jq:Command-line JSON processor"
-                "stow:Symlink farm manager"
-                "omz:Oh My Zsh framework for managing Zsh configuration"
-            )
+            # Get available packages from packages directory
+            ALL_PACKAGES=()
+            for pkg_dir in "${PACKAGES_DIR}"/*; do
+                if [ -d "$pkg_dir" ] && [ -f "${pkg_dir}/install.sh" ]; then
+                    ALL_PACKAGES+=("$(basename "$pkg_dir")")
+                fi
+            done
             
             SUCCESS=true
             INSTALLED_COUNT=0
@@ -282,15 +273,11 @@ case "$COMMAND" in
             fi
             
             for package in "${ALL_PACKAGES[@]}"; do
-                # Find description for this package
+                # Get package description from install.sh
                 description="no description"
-                for desc in "${DESCRIPTIONS[@]}"; do
-                    IFS=':' read -r pkg desc_text <<< "$desc"
-                    if [ "$pkg" = "$package" ]; then
-                        description="$desc_text"
-                        break
-                    fi
-                done
+                if grep -q "readonly DESCRIPTION=" "${PACKAGES_DIR}/${package}/install.sh"; then
+                    description=$(grep "readonly DESCRIPTION=" "${PACKAGES_DIR}/${package}/install.sh" | cut -d'"' -f2)
+                fi
                 
                 if [ "$INTERACTIVE_MODE" = true ]; then
                     # In interactive mode, ask before installing
@@ -403,6 +390,31 @@ case "$COMMAND" in
             jq -r 'to_entries | .[] | "  \(.key) (version: \(.value))"' "$PACKAGE_JSON"
         else
             info "No packages installed or package information unavailable"
+        fi
+        ;;
+    available)
+        # List available packages
+        info "Available packages:"
+        
+        # Get all packages in the packages directory
+        FOUND_PACKAGES=0
+        for pkg_dir in "${PACKAGES_DIR}"/*; do
+            if [ -d "$pkg_dir" ] && [ -f "${pkg_dir}/install.sh" ]; then
+                PKG_NAME=$(basename "$pkg_dir")
+                
+                # Get description from install.sh
+                DESCRIPTION="no description"
+                if grep -q "readonly DESCRIPTION=" "${pkg_dir}/install.sh"; then
+                    DESCRIPTION=$(grep "readonly DESCRIPTION=" "${pkg_dir}/install.sh" | cut -d'"' -f2)
+                fi
+                
+                echo "  ${PKG_NAME} - ${DESCRIPTION}"
+                ((FOUND_PACKAGES++))
+            fi
+        done
+        
+        if [ $FOUND_PACKAGES -eq 0 ]; then
+            warn "No packages available for installation"
         fi
         ;;
     help)

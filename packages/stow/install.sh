@@ -11,6 +11,7 @@ readonly EXTRACTED_DIR="$HOME/Downloads/omp-temp/stow-latest/stow-${STOW_VERSION
 
 # Package information
 readonly NAME="stow"
+readonly DESCRIPTION="Symlink farm manager"
 
 # Source the message functions
 source "${OMP_DIR}/lib/messages.sh"

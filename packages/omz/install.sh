@@ -8,6 +8,7 @@ readonly OMP_DIR="$(dirname "${PACKAGES_DIR}")"
 # Package information
 readonly NAME="OMZ"
 readonly VERSION="latest"
+readonly DESCRIPTION="Oh My Zsh framework for managing Zsh configuration"
 
 # Source the message functions
 source "${OMP_DIR}/lib/messages.sh"

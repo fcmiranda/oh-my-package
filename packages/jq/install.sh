@@ -8,6 +8,7 @@ readonly JQ_URL="https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linu
 readonly JQ_VERSION="1.7.1"
 readonly LOCAL_DIR="${SCRIPT_DIR}/.local"
 readonly LOCAL_BIN_DIR="${LOCAL_DIR}/bin"
+readonly DESCRIPTION="Command-line JSON processor"
 
 # Source the message functions
 source "${OMP_DIR}/lib/messages.sh"
