@@ -1,110 +1,23 @@
 #!/bin/bash
 
 # Constants
-readonly OMP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PACKAGES_DIR="${OMP_DIR}/packages"
-readonly OMP_HOME="$HOME/oh-my-package"
-readonly STOW_VERSION="2.4.1"
-readonly EXTRACTED_DIR="$HOME/Downloads/extracted/stow-latest/stow-${STOW_VERSION}"
-readonly PACKAGE_JSON="$OMP_HOME/omp-package.json"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PACKAGES_DIR="${SCRIPT_DIR}/packages"
+readonly PACKAGE_JSON="$HOME/oh-my-package/omp-package.json"
 
 # Source the message functions
-source "${OMP_DIR}/lib/messages.sh"
+source "${SCRIPT_DIR}/lib/messages.sh"
 
-# --- Functions ---
-
-# Remove symbolic links using stow
-remove_stow_links() {
-    local package="$1"
-    info "Removing $package symbolic links..."
-    
-    if [ -d "$PACKAGES_DIR/$package" ]; then
-        info "Removing "$PACKAGES_DIR/$package" symbolic links..."
-        if ! stow -d "$PACKAGES_DIR" -t "$HOME" -D "$package"; then
-            error "Failed to remove $package symbolic links"
-            return 1
-        fi
-        cd - > /dev/null
-    else
-        info "Package $package not found in $PACKAGES_DIR"
-    fi
-    return 0
+# Function to show usage information
+show_usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  -k, --keep    Keep local package directories (.local, .oh-my-zsh)"
+    echo "  -h, --help    Show this help message"
+    exit 0
 }
 
-# Remove symbolic links using link.sh
-remove_link_links() {
-    local package="$1"
-    info "Removing $package symbolic links..."
-    if [ -d "$PACKAGES_DIR/$package" ]; then
-        if ! bash "${OMP_DIR}/lib/link.sh" -r "$PACKAGES_DIR/$package"; then
-            error "Failed to remove $package symbolic links"
-            return 1
-        fi
-    else
-        info "Package $package not found in $PACKAGES_DIR"
-    fi
-    return 0
-}
-
-# Remove local folder
-remove_local_folder() {
-    local package="$1"
-    local folder="$PACKAGES_DIR/$package/.local"
-    
-    if [ "$KEEP_LOCAL" = true ]; then
-        info "Keeping $package local folder (--keep option used)"
-        return 0
-    fi
-    
-    info "Removing $package local folder..."
-    if [ -d "$folder" ]; then
-        rm -rf "$folder" || {
-            error "Failed to remove $package local folder"
-            return 1
-        }
-    fi
-    return 0
-}
-
-# Remove OMZ specific folders
-remove_omz_folders() {
-    local omz_dir="$PACKAGES_DIR/omz"
-    
-    # Remove .local folder
-    if ! remove_local_folder "omz"; then
-        return 1
-    fi
-    
-    # Remove .oh-my-zsh folder
-    if [ "$KEEP_LOCAL" = true ]; then
-        info "Keeping OMZ .oh-my-zsh folder (--keep option used)"
-        return 0
-    fi
-    
-    info "Removing OMZ .oh-my-zsh folder..."
-    if [ -d "$omz_dir/.oh-my-zsh" ]; then
-        rm -rf "$omz_dir/.oh-my-zsh" || {
-            error "Failed to remove OMZ .oh-my-zsh folder"
-            return 1
-        }
-    fi
-    
-    return 0
-}
-
-# Remove extracted stow files
-remove_extracted_stow() {
-    info "Removing extracted stow files..."
-    if [ -d "$EXTRACTED_DIR" ]; then
-        rm -rf "$EXTRACTED_DIR" || {
-            error "Failed to remove extracted stow files"
-            return 1
-        }
-    fi
-    return 0
-}
-
-# Remove package.json file
+# Function to remove package.json file
 remove_package_json() {
     info "Removing omp-package.json..."
     if [ -f "$PACKAGE_JSON" ]; then
@@ -112,31 +25,63 @@ remove_package_json() {
             error "Failed to remove omp-package.json"
             return 1
         }
+    else
+        info "No omp-package.json found"
     fi
     return 0
 }
 
-# Show usage information
-show_usage() {
-    echo "Usage: $0 [options]"
-    echo "Options:"
-    echo "  -k, --keep    Keep .local and .oh-my-zsh folders"
-    echo "  -h, --help    Show this help message"
-    exit 0
+# Function to remove global symlink
+remove_global_symlink() {
+    info "Removing global omp command..."
+    
+    # Check common locations for the symlink
+    if [ -L "$HOME/bin/omp" ]; then
+        rm -f "$HOME/bin/omp" || {
+            warn "Failed to remove symlink from $HOME/bin/omp"
+            return 1
+        }
+        success "Removed symlink from $HOME/bin/omp"
+    elif [ -L "$HOME/.local/bin/omp" ]; then
+        if [ -w "$HOME/.local/bin" ]; then
+            rm -f "$HOME/.local/bin/omp" || {
+                warn "Failed to remove symlink from $HOME/.local/bin/omp"
+                return 1
+            }
+            success "Removed symlink from $HOME/.local/bin/omp"
+        else
+            info "Attempting to remove symlink with sudo..."
+            if sudo rm -f "$HOME/.local/bin/omp"; then
+                success "Removed symlink from $HOME/.local/bin/omp (with sudo)"
+            else
+                warn "Failed to remove symlink from $HOME/.local/bin/omp"
+                return 1
+            fi
+        fi
+    else
+        info "No global symlink found for omp command"
+    fi
+    
+    return 0
 }
 
 # --- Main Logic ---
 
 # Parse command line arguments
 KEEP_LOCAL=false
+SHOW_HELP=false
+ARGS=""
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -k|--keep)
             KEEP_LOCAL=true
+            ARGS="$ARGS -k"
             shift
             ;;
         -h|--help)
-            show_usage
+            SHOW_HELP=true
+            shift
             ;;
         *)
             error "Unknown option: $1"
@@ -145,43 +90,59 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-info "Starting uninstallation process..."
+if [ "$SHOW_HELP" = true ]; then
+    show_usage
+fi
+
+# Header
+info "****************************************************************"
+info "            Starting Oh-My-Package Uninstallation"
+info "****************************************************************"
+echo ""
+
 if [ "$KEEP_LOCAL" = true ]; then
     info "Keeping local folders (--keep option used)"
 fi
-echo ""
 
-# Remove OMZ
-# if ! remove_stow_links "omz"; then
-#     exit 1
-# fi
-# if ! remove_omz_folders; then
-#     exit 1
-# fi
+# Uninstall each package
+PACKAGES=("omz" "stow" "jq")
+SUCCESS=true
 
-# Remove stow
-if ! remove_link_links "stow"; then
-    exit 1
-fi
-if ! remove_local_folder "stow"; then
-    exit 1
-fi
-if ! remove_extracted_stow; then
-    exit 1
-fi
+for package in "${PACKAGES[@]}"; do
+    if [ -f "${PACKAGES_DIR}/${package}/uninstall.sh" ]; then
+        info "Uninstalling ${package}..."
+        if ! bash "${PACKAGES_DIR}/${package}/uninstall.sh" $ARGS; then
+            error "Failed to uninstall ${package}"
+            SUCCESS=false
+        fi
+    else
+        warn "No uninstall script found for ${package}"
+    fi
+done
 
-# Remove jq
-if ! remove_link_links "jq"; then
-    exit 1
-fi
-if ! remove_local_folder "jq"; then
-    exit 1
+# Remove global symlink
+if ! remove_global_symlink; then
+    SUCCESS=false
 fi
 
 # Remove package.json
 if ! remove_package_json; then
-    exit 1
+    SUCCESS=false
 fi
 
-success "Uninstallation completed successfully!"
+# Footer
 echo ""
+info "****************************************************************"
+if [ "$SUCCESS" = true ]; then
+    success "       Oh-My-Package Uninstallation Completed Successfully"
+else
+    error "       Oh-My-Package Uninstallation Completed with Errors"
+fi
+info "****************************************************************"
+echo ""
+
+if [ "$SUCCESS" = true ]; then
+    exit 0
+else
+    exit 1
+fi
