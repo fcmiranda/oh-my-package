@@ -6,18 +6,14 @@ readonly OMP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source the message functions
 source "${OMP_DIR}/lib/messages.sh"
 
-# Make omp script executable
-chmod +x "${OMP_DIR}/omp"
+
 
 # Create symbolic link to make omp globally available
-if [ -d "$HOME/bin" ]; then
-    # Use ~/bin if it exists (and is likely in PATH)
-    ln -sf "${OMP_DIR}/omp" "$HOME/bin/omp"
-    success "Linked omp to $HOME/bin/omp"
-elif [ -d "$HOME/.local/bin" ] && [ -w "$HOME/.local/bin" ]; then
+if [ -d "$HOME/.local/bin" ] && [ -w "$HOME/.local/bin" ]; then
     # Use $HOME/.local/bin if it's writable
     ln -sf "${OMP_DIR}/omp" "$HOME/.local/bin/omp"
-    success "Linked omp to $HOME/.local/bin/omp"
+    ln -sf "${OMP_DIR}/bin/toilet" "$HOME/.local/bin/toilet"
+    success "Linked omp.sh to $HOME/.local/bin/omp"
 else
     # Ask user for sudo to install to $HOME/.local/bin
     warn "Neither ~/bin exists nor $HOME/.local/bin is writable."
@@ -32,6 +28,6 @@ else
     fi
 fi
 
-info "Oh My Package it was installed..."
+omp i
 
 echo ""

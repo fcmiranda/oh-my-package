@@ -108,5 +108,3 @@ info "****************************************************************"
 info "                  $NAME Installation Complete"
 info "****************************************************************"
 echo ""
-
-success "stow installed successfully"

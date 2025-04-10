@@ -66,5 +66,4 @@ info "                 $NAME Uninstallation Complete"
 info "****************************************************************"
 echo ""
 
-success "$NAME uninstalled successfully"
 exit 0 

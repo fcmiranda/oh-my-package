@@ -1,1 +1,1 @@
-# oh-my-package
+# oh-my-pkg

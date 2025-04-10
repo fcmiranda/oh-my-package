@@ -1,2 +1,3 @@
 .local
 .zshrc.pre-omp-*
+omp-package.json

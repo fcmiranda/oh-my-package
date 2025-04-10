@@ -94,5 +94,4 @@ info "                  $NAME Installation Complete"
 info "****************************************************************"
 echo ""
 
-success "jq installed successfully"
 echo ""

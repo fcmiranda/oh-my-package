@@ -6,6 +6,8 @@ readonly OMP_DIR="$(dirname "${SCRIPT_DIR}")"
 readonly PACKAGES_DIR="${OMP_DIR}/packages"
 readonly PACKAGE_JSON="${OMP_DIR}/omp-package.json"
 
+toilet -d "$OMP_DIR/_/figlet" -f smblock "Oh My Pkg" -F border:metal 
+
 # Source the message functions
 source "${OMP_DIR}/lib/messages.sh"
 
@@ -15,8 +17,8 @@ show_usage() {
     echo ""
     echo "Commands:"
     echo "  install, i [packages...]  Install one or more packages"
-    echo "  uninstall <package>      Uninstall a specific package"
-    echo "  rm <package>             Alias for uninstall"
+    echo "  uninstall <package|all>   Uninstall a specific package or all packages"
+    echo "  rm <package|all>          Alias for uninstall"
     echo "  list                     List installed packages"
     echo "  help                     Show this help message"
     echo ""
@@ -31,7 +33,7 @@ show_usage() {
     echo "  omp i -i                 Interactive installation of packages"
     echo "  omp install jq stow      Install specific packages"
     echo "  omp uninstall stow       Uninstall stow"
-    echo "  omp rm omz               Uninstall Oh My Zsh"
+    echo "  omp rm all               Uninstall all packages"
     exit 0
 }
 
@@ -125,13 +127,13 @@ uninstall_package() {
     # Check if package exists
     if [ ! -d "${PACKAGES_DIR}/${package_name}" ]; then
         error "Package '${package_name}' is not available"
-        exit 1
+        return 1
     fi
     
     # Check if uninstall script exists
     if [ ! -f "${PACKAGES_DIR}/${package_name}/uninstall.sh" ]; then
         error "No uninstall script found for ${package_name}"
-        exit 1
+        return 1
     fi
     
     # Build arguments for uninstall script
@@ -156,6 +158,62 @@ uninstall_package() {
         error "Failed to uninstall ${package_name}"
         return 1
     fi
+}
+
+# Function to uninstall all packages
+uninstall_all_packages() {
+    local keep_local="$1"
+    local yes_flag="$2"
+    
+    # Get list of available packages
+    local AVAILABLE_PACKAGES=()
+    for pkg_dir in "${PACKAGES_DIR}"/*; do
+        if [ -d "$pkg_dir" ]; then
+            AVAILABLE_PACKAGES+=("$(basename "$pkg_dir")")
+        fi
+    done
+    
+    if [ ${#AVAILABLE_PACKAGES[@]} -eq 0 ]; then
+        warn "No packages available to uninstall"
+        return 0
+    fi
+    
+    # Confirm with user unless yes flag is set
+    if [ "$yes_flag" != true ]; then
+        read -p "Are you sure you want to uninstall all packages? This cannot be undone [y/N]: " response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            info "Uninstallation cancelled"
+            return 0
+        fi
+    fi
+    
+    info "Uninstalling all packages..."
+    
+    local SUCCESS=true
+    local UNINSTALLED_COUNT=0
+    
+    # Uninstall packages in reverse order to handle dependencies
+    for ((i=${#AVAILABLE_PACKAGES[@]}-1; i>=0; i--)); do
+        local package="${AVAILABLE_PACKAGES[$i]}"
+        if uninstall_package "$package" "$keep_local"; then
+            ((UNINSTALLED_COUNT++))
+        else
+            SUCCESS=false
+        fi
+        echo ""
+    done
+    
+    if [ $UNINSTALLED_COUNT -eq 0 ]; then
+        warn "No packages were uninstalled"
+    else
+        if [ "$SUCCESS" = true ]; then
+            success "All packages were uninstalled successfully!"
+        else
+            warn "Some packages failed to uninstall"
+        fi
+    fi
+    
+    return 0
 }
 
 # Parse command-line arguments
@@ -208,8 +266,8 @@ case "$COMMAND" in
         # If no specific packages provided, install all packages
         if [ ${#PACKAGES[@]} -eq 0 ]; then
             # Available packages with descriptions
-            local ALL_PACKAGES=("jq" "stow" "omz")
-            local DESCRIPTIONS=(
+            ALL_PACKAGES=("jq" "stow" "omz")
+            DESCRIPTIONS=(
                 "jq:Command-line JSON processor"
                 "stow:Symlink farm manager"
                 "omz:Oh My Zsh framework for managing Zsh configuration"
@@ -225,7 +283,7 @@ case "$COMMAND" in
             
             for package in "${ALL_PACKAGES[@]}"; do
                 # Find description for this package
-                local description="no description"
+                description="no description"
                 for desc in "${DESCRIPTIONS[@]}"; do
                     IFS=':' read -r pkg desc_text <<< "$desc"
                     if [ "$pkg" = "$package" ]; then
@@ -287,6 +345,7 @@ case "$COMMAND" in
     uninstall|rm)
         # Process uninstall options
         KEEP_LOCAL=false
+        YES_FLAG=false
         PACKAGE_NAME=""
         
         while [[ $# -gt 0 ]]; do
@@ -295,15 +354,22 @@ case "$COMMAND" in
                     KEEP_LOCAL=true
                     shift
                     ;;
+                -y|--yes)
+                    YES_FLAG=true
+                    shift
+                    ;;
                 -h|--help)
-                    echo "Usage: omp uninstall|rm <package> [-k|--keep]"
+                    echo "Usage: omp uninstall|rm <package|all> [-k|--keep] [-y|--yes]"
                     echo ""
                     echo "Options:"
                     echo "  -k, --keep    Keep local files when uninstalling"
+                    echo "  -y, --yes     Skip confirmation prompt for uninstall all"
                     echo ""
                     echo "Examples:"
                     echo "  omp uninstall stow     Uninstall stow"
                     echo "  omp rm omz -k          Uninstall Oh My Zsh but keep local files"
+                    echo "  omp rm all             Uninstall all packages"
+                    echo "  omp rm all -y -k       Uninstall all packages without prompting, keeping local files"
                     exit 0
                     ;;
                 *)
@@ -320,11 +386,15 @@ case "$COMMAND" in
         
         if [ -z "$PACKAGE_NAME" ]; then
             error "No package specified for uninstallation"
-            echo "Usage: omp uninstall|rm <package>"
+            echo "Usage: omp uninstall|rm <package|all>"
             exit 1
         fi
         
-        uninstall_package "$PACKAGE_NAME" "$KEEP_LOCAL"
+        if [ "$PACKAGE_NAME" = "all" ]; then
+            uninstall_all_packages "$KEEP_LOCAL" "$YES_FLAG"
+        else
+            uninstall_package "$PACKAGE_NAME" "$KEEP_LOCAL"
+        fi
         ;;
     list)
         # List installed packages
